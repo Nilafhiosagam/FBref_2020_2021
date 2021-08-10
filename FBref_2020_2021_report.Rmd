@@ -1,0 +1,287 @@
+---
+title: "FBref"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+```{r}
+library(tidyverse)
+library(ggrepel)
+library(tidymodels)
+library(embed)
+library(here)
+```
+
+```{r}
+raw_df <- read_csv(here("data", "fb-data_2020-21_players_share.csv"))
+```
+
+```{r}
+df <- raw_df %>% 
+  #too many positions, reduce
+  mutate(simplified_position = case_when(
+        position %in% c('DF,MF', 'MF,DF') ~ 'DM',
+        position %in% c('DF,FW', 'FW,DF') ~ 'M',
+        position %in% c('MF,FW', 'FW,MF') ~ 'AM',
+        position == 'DF' ~ 'D',
+        position == 'MF' ~ 'M',
+        position == 'FW' ~ 'F',
+        position == 'GK' ~ 'G',
+        position == 'GK,MF' ~ 'G',
+        TRUE ~ position
+      )
+    ) %>% 
+  filter(player != "Salvador Ferrer")
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+
+
+
+
+versus_plot <- function(x_parameter, y_parameter){
+  df %>%
+  filter(mins> 900) %>% 
+  ggplot(aes({{x_parameter}}, {{y_parameter}} )) +
+  geom_point(aes(fill = primary_color, colour =  secondary_color), shape = 21) +
+  geom_text_repel(aes(label = short_name)) +
+  scale_fill_identity(labels = raw_df$primary_color,
+                      breaks = raw_df$primary_color) +
+  scale_color_identity(labels = raw_df$secondary_color,
+                      breaks = raw_df$secondary_color) +
+  theme_light() +
+  labs(caption = "Source: FBref.com",
+       subtitle = "Players with > 900 minutes in the 2020/2021 season across the 'top five' leagues") +
+  theme(plot.title = element_text(face="bold"))
+}
+
+
+  
+  
+```
+
+```{r}
+versus_plot(shots_p_90, shots_on_target_p_90) +
+  labs(title = "Shots vs shots on target (per 90)",
+       x = "Shots",
+       y = "Shots on target")
+```
+
+```{r}
+versus_plot(attempted_dribble_p_90, success_dribble_p_90) +
+  labs(title = "Attempted vs successful dribbles (per 90)",
+       x = "Attempted dribbles",
+       y = "successful dribbles")
+```
+
+```{r}
+versus_plot(pass_attempted_p_90, pass_cmp_p_90) +
+  labs(title = "Attempted vs completed passses (per 90)",
+       x = "Attempted passes",
+       y = "Completed passes") +
+  #remove a player with 0,0 for some reason
+  xlim(10,120)
+```
+
+```{r}
+versus_plot(tackle_attempted_p_90, tackle_won_p_90) +
+  labs(title = "Attempted vs won tackles (per 90)",
+       x = "Attempted tackles",
+       y = "Tackles won") 
+```
+
+```{r}
+versus_plot(npxG_p_90,npG_p_90) +
+  labs(title = "Expected vs actual penalty pen goals (per 90)",
+       x = "Expected non penalty goals",
+       y = "Actual non penalty goals") +
+ geom_abline()
+```
+
+# Unsupervised Learning
+
+```{r}
+unsupervised_df <- df %>% 
+  filter(mins> 900) %>% 
+  select(player:league, simplified_position, contains("_p_90"))
+
+
+
+```
+
+## PCA
+
+### Create PCA recipe
+
+Normalise and prep recipe. Provide an ID for later skree plot
+
+```{r}
+
+
+pca_recipe <- recipe(~., data=unsupervised_df)%>%
+  step_normalize(all_numeric()) %>%
+  step_pca(all_numeric(), id = "pca") %>% 
+  prep() 
+```
+
+PCA plot
+
+```{r}
+pca_recipe %>% 
+  juice() %>% 
+  ggplot(aes(PC1, PC2, colour= simplified_position)) +
+  geom_point() +
+  geom_text_repel(aes(label = short_name)) +
+  theme_light() +
+  labs(caption = "Source: FBref.com",
+       subtitle = "Players with > 900 minutes in the 2020/2021 season across the 'top five' leagues",
+       title = "PCA analysis") +
+  theme(plot.title = element_text(face="bold"))
+  
+```
+
+Scree plot
+
+```{r}
+pca_recipe %>% 
+  broom::tidy(type = "variance", id = "pca") %>% 
+  filter(component <= 10) %>% 
+  pivot_wider(names_from = terms, values_from = value) %>% 
+  janitor::clean_names()  %>% 
+  ggplot() +
+  geom_col(aes(component, percent_variance)) +
+  geom_line(aes(component, cumulative_percent_variance)) +
+  
+  theme_light() +
+  theme(plot.title = element_text(face="bold")) +
+  labs(title = "PCA component importance",
+       x = "Component",
+       y = "Variance")
+```
+
+### Find similar players
+
+"Juice" the data
+
+```{r}
+comps <- pca_recipe %>% 
+  juice()
+```
+
+Get the percent variance each PC is responsible for
+
+```{r}
+importance <- pca_recipe %>% 
+  broom::tidy(type = "variance", id = "pca") %>% 
+  filter(component <= 5) %>% 
+  filter(terms == "percent variance") %>% 
+  pivot_wider(names_from = component, values_from = value) %>% 
+  clean_names() %>% 
+  select(x1:x5)
+```
+
+Scale each PC by the variance it is responsible for. Find the distance between each row
+
+```{r}
+
+# combind the PC and vairance impact
+combined <- bind_cols(comps, importance)
+
+#scale
+impact <- combined[,3:7] * combined[,8:12]
+
+#distance matrix
+distances <- as.matrix(dist(impact, method = "euclidean"))
+
+#name each column
+colnames(distances) <- unsupervised_df$player
+
+
+#convert to tibble
+comparison <- as_tibble(distances) 
+```
+
+Recombine this matrix with the starting dataset
+
+```{r}
+matrix_data <- unsupervised_df %>% 
+  select(1:7) %>% 
+  bind_cols(comparison)
+
+```
+
+Find similar players
+
+```{r}
+
+matrix_data %>% 
+  select(1:7, player_of_interest = `Houssem Aouar`) %>% 
+  arrange(player_of_interest) 
+```
+
+# UMAP
+
+## Create UMAP recipe
+
+```{r}
+umap_recipe <- recipe(~., data=unsupervised_df)%>%
+  step_normalize(all_numeric()) %>%
+  step_umap(all_numeric(), id = "umap") %>% 
+  prep() 
+```
+
+```{r}
+umap_recipe %>% 
+  juice() %>% 
+  ggplot(aes(umap_1, umap_2, colour= simplified_position)) +
+  geom_point() +
+  geom_text_repel(aes(label = short_name)) +
+  theme_light() +
+  labs(caption = "Source: FBref.com",
+       subtitle = "Players with > 900 minutes in the 2020/2021 season across the 'top five' leagues",
+       title = "UMAP analysis") +
+  theme(plot.title = element_text(face="bold"))
+```
+
+## Find similar players
+
+```{r}
+impact <- umap_recipe %>% 
+  juice() %>% 
+  select(contains("umap"))
+
+
+
+#distance matrix
+distances <- as.matrix(dist(impact, method = "euclidean"))
+
+#name each column
+colnames(distances) <- unsupervised_df$player
+
+
+#convert to tibble
+comparison <- as_tibble(distances) 
+```
+
+```{r}
+matrix_data <- unsupervised_df %>% 
+  select(1:7) %>% 
+  bind_cols(comparison)
+```
+
+```{r}
+matrix_data %>% 
+  select(1:7, player_of_interest = `David de Gea`) %>% 
+  arrange(player_of_interest) 
+```
