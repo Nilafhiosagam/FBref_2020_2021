@@ -17,6 +17,7 @@ library(ggrepel)
 library(tidymodels)
 library(embed)
 library(here)
+library(janitor)
 ```
 
 ```{r}
@@ -158,7 +159,7 @@ pca_recipe %>%
   broom::tidy(type = "variance", id = "pca") %>% 
   filter(component <= 10) %>% 
   pivot_wider(names_from = terms, values_from = value) %>% 
-  janitor::clean_names()  %>% 
+  clean_names()  %>% 
   ggplot() +
   geom_col(aes(component, percent_variance)) +
   geom_line(aes(component, cumulative_percent_variance)) +
