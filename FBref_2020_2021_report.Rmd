@@ -262,7 +262,6 @@ impact <- umap_recipe %>%
   select(contains("umap"))
 
 
-
 #distance matrix
 distances <- as.matrix(dist(impact, method = "euclidean"))
 
