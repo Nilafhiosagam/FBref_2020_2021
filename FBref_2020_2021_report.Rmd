@@ -39,7 +39,7 @@ df <- raw_df %>%
         TRUE ~ position
       )
     ) %>% 
-  filter(player != "Salvador Ferrer")
+  filter(player != "Salvador Ferrer") #error in his stats
 ```
 
 ```{r}
@@ -90,9 +90,7 @@ versus_plot(attempted_dribble_p_90, success_dribble_p_90) +
 versus_plot(pass_attempted_p_90, pass_cmp_p_90) +
   labs(title = "Attempted vs completed passses (per 90)",
        x = "Attempted passes",
-       y = "Completed passes") +
-  #remove a player with 0,0 for some reason
-  xlim(10,120)
+       y = "Completed passes") 
 ```
 
 ```{r}
@@ -161,14 +159,16 @@ pca_recipe %>%
   pivot_wider(names_from = terms, values_from = value) %>% 
   clean_names()  %>% 
   ggplot() +
-  geom_col(aes(component, percent_variance)) +
+  geom_col(aes(component, percent_variance, fill = percent_variance)) +
   geom_line(aes(component, cumulative_percent_variance)) +
-  
+  scale_x_continuous(breaks = seq(0,10)) +
   theme_light() +
-  theme(plot.title = element_text(face="bold")) +
+  theme(plot.title = element_text(face="bold"), legend.position = "none") +
   labs(title = "PCA component importance",
        x = "Component",
-       y = "Variance")
+       y = "Variance Explained (%)",
+       subtitle = "Based on 2020/2021 data across the 'top five' leagues")
+  
 ```
 
 ### Find similar players
