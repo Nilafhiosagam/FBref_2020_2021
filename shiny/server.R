@@ -8,19 +8,68 @@
 #
 
 library(shiny)
+library(dplyr)
+library(here)
+library(janitor)
+library(ggplot2)
+library(forcats)
 
-# Define server logic required to draw a histogram
-shinyServer(function(input, output) {
+df <- readRDS("exported.rds")
 
-    output$distPlot <- renderPlot({
 
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white')
-
+# Define server logic 
+shinyServer(function(input, output, session) {
+    
+    
+    player_names <- df$player
+    updateSelectizeInput(session,
+                         inputId = "selectPlayer", 
+                         choices = player_names, 
+                         server = TRUE)
+    
+    
+    
+    
+    
+    
+    output$playerInfo <- renderTable({
+        df %>% 
+            filter(player == input$selectPlayer) %>% 
+            select(2:6) %>% 
+            clean_names(case = "title")
+        
     })
+    
+    
+    output$otherPlayer <- renderTable({df %>% 
+            select(player, country, position, club, league, score = input$selectPlayer) %>% 
+            arrange(score) %>% 
+            filter(score != 0) %>% 
+            head(10) %>% 
+            clean_names(case = "title")
+    })
+    
+    
+    
+    output$graphPlayers <- renderPlot({
+        df %>% 
+        select(player, score = input$selectPlayer) %>% 
+            arrange(score) %>% 
+            head(10) %>% 
+            mutate(player = fct_reorder(player, score, min)) %>% 
+            ggplot() +
+            geom_col(aes(player,score)) +
+            theme_minimal() +
+            labs(x= "",
+                 y= "Score",
+                 title = "Euclidean distance between PCA components",
+                 subtitle = "Based on players with > 900 minutes in the 'top five' leagues in 2020/2021") +
+            theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
+        
+        
+        
+    })
+    
+    
 
 })

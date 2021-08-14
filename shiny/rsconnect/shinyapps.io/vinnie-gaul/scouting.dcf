@@ -1,0 +1,13 @@
+name: scouting
+title: scouting
+username:
+account: vinnie-gaul
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4489905
+bundleId: 4920042
+url: https://vinnie-gaul.shinyapps.io/scouting/
+when: 1628869195.40323
+lastSyncTime: 1628869195.40326
+asMultiple: FALSE
+asStatic: FALSE

@@ -8,26 +8,45 @@
 #
 
 library(shiny)
+library(shinythemes)
 
-# Define UI for application that draws a histogram
-shinyUI(fluidPage(
-
-    # Application title
-    titlePanel("Old Faithful Geyser Data"),
-
-    # Sidebar with a slider input for number of bins
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-            plotOutput("distPlot")
+fluidPage(theme = shinytheme("cerulean"),
+    
+    titlePanel("What am I doing with my life?"),
+    
+    
+    fluidRow(
+        
+        
+        
+        column(2,
+               "",
+               selectizeInput("selectPlayer", 
+                              label = "Player Selected:", 
+                              choices = NULL)),
+        
+        
+        column(10,
+               "",
+               
+               h1("Selected Player"),
+               
+               tableOutput("playerInfo"),
+               
+               br(),
+               
+               h1("Similar Players"),
+               h2("Table"),
+               p("Lower score is better"),
+               
+             
+               tableOutput("otherPlayer"),
+               
+               h2("Graph"),
+        
+               plotOutput("graphPlayers"))
+    
+    
+    
         )
     )
-))

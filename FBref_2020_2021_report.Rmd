@@ -285,3 +285,13 @@ matrix_data %>%
   select(1:7, player_of_interest = `David de Gea`) %>% 
   arrange(player_of_interest) 
 ```
+
+# Export data for shiny app
+
+```{r}
+df_for_export <- df %>% select(player:nineties) %>% 
+  right_join(matrix_data, by = c("player", "short_name", "country", "position", "club", "league"))
+
+
+saveRDS(df_for_export, here("export", "exported.rds"))
+```
